@@ -1,0 +1,10 @@
+C:\Users\ACER\source\repos\MatBaoInvoice\MatBaoInvoice\bin\x64\Debug\MatBaoInvoice.exe
+C:\Users\ACER\source\repos\MatBaoInvoice\MatBaoInvoice\bin\x64\Debug\MatBaoInvoice.pdb
+C:\Users\ACER\source\repos\MatBaoInvoice\MatBaoInvoice\bin\x64\Debug\Newtonsoft.Json.dll
+C:\Users\ACER\source\repos\MatBaoInvoice\MatBaoInvoice\bin\x64\Debug\SAPBusinessOneSDK.dll
+C:\Users\ACER\source\repos\MatBaoInvoice\MatBaoInvoice\bin\x64\Debug\Newtonsoft.Json.xml
+C:\Users\ACER\source\repos\MatBaoInvoice\MatBaoInvoice\obj\x64\Debug\MatBaoInvoice.csproj.AssemblyReference.cache
+C:\Users\ACER\source\repos\MatBaoInvoice\MatBaoInvoice\obj\x64\Debug\MatBaoInvoice.csproj.CoreCompileInputs.cache
+C:\Users\ACER\source\repos\MatBaoInvoice\MatBaoInvoice\obj\x64\Debug\MatBaoInvoice.csproj.CopyComplete
+C:\Users\ACER\source\repos\MatBaoInvoice\MatBaoInvoice\obj\x64\Debug\MatBaoInvoice.exe
+C:\Users\ACER\source\repos\MatBaoInvoice\MatBaoInvoice\obj\x64\Debug\MatBaoInvoice.pdb
