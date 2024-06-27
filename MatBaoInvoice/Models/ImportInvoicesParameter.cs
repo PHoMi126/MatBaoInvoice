@@ -17,7 +17,7 @@ namespace MatBaoInvoice.Models
 
     public class Invoices
     {
-        public string FKey { get; set; }
+        public string Fkey { get; set; }
         public string MaKH { get; set; }
         public string Buyer { get; set; } //Tên người mua - Tổ chức
         public string CusName { get; set; } //Tên người mua - khacks lẻ

@@ -43,7 +43,7 @@ namespace MatBaoInvoice.Invoice
                 oButtonCombo.Caption = "Hóa Đơn";
                 oButtonCombo.ValidValues.Add("Tạo HĐ", "Tạo HĐ");
                 oButtonCombo.ValidValues.Add("Xem HĐ", "Xem HĐ");
-                oButtonCombo.ValidValues.Add("Gửi email", "Gửi email");
+                oButtonCombo.ValidValues.Add("Gửi Email", "Gửi Email");
                 oButtonCombo.ValidValues.Add("Hủy HĐ", "Hủy HĐ");
                 oButtonCombo.ValidValues.Add("Tải HĐ", "Tải HĐ");
                 oButtonCombo.ExpandType = BoExpandType.et_DescriptionOnly;
@@ -65,6 +65,7 @@ namespace MatBaoInvoice.Invoice
 
             if (oBtnCombo.Selected == null)
                 return;
+
             if (oBtnCombo.Selected.Value == "Tạo HĐ")
             {
                 if (oForm.Mode != BoFormMode.fm_OK_MODE)
@@ -75,17 +76,33 @@ namespace MatBaoInvoice.Invoice
                     try
                     {
                         string message = "";
+
+                        PublishInvoiceParameters invoiceMD = BuildInvoice(oForm, ref message);
+
+                        var client = new HttpClient();
+                        var request = new HttpRequestMessage(System.Net.Http.HttpMethod.Post, "https://api-demo.matbao.in/api/v2/invoice/importAndPublishInv");
+                        string jsonString = JsonConvert.SerializeObject(invoiceMD);
+                        var content = new StringContent(jsonString, null, "application/json");
+
+                        request.Content = content;
+                        var response = await client.SendAsync(request);
+                        response.EnsureSuccessStatusCode();
+
+                        var res = await response.Content.ReadAsStringAsync();
+                        var resJson = JObject.Parse(res);
+
+                        var a = resJson["data"] as JArray;
+                        string invID = a[0]["InvID"].ToString();
+
                         string fkey = await GetFkey();
 
-                        if (string.IsNullOrEmpty(fkey))
+                        if (string.IsNullOrEmpty(fkey) || string.IsNullOrEmpty(invID))
                         {
                             return;
                         }
 
-                        PublishInvoiceParameters invoiceMD = BuildInvoice(oForm, ref message);
-
                         invoiceMD.Fkey = fkey;
-                        invoiceMD.SO = "KC001"+"24";
+                        invoiceMD.SO = "KC001"+"26";
 
                         if (invoiceMD != null)
                         {
@@ -98,6 +115,7 @@ namespace MatBaoInvoice.Invoice
                                 string DocEntry = oinv.GetValue("DocEntry", 0).Trim();
                                 invoice.GetByKey(int.Parse(DocEntry));
                                 invoice.UserFields.Fields.Item("U_FKEY").Value = fkey;
+                                invoice.UserFields.Fields.Item("U_InvID").Value = invID;
                                 invoice.Update();
 
                                 Globals.SapApplication.StatusBar.SetText("Publish AR Sucess", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Success);
@@ -127,9 +145,53 @@ namespace MatBaoInvoice.Invoice
                 }
                 catch { }
             }
-            else if (oBtnCombo.Selected.Value == "Gửi email")
+            else if (oBtnCombo.Selected.Value == "Gửi Email")
             {
+                try
+                {
+                    string invID = ocrd.GetValue("E_Mail", ocrd.Offset);
 
+                    if (!string.IsNullOrWhiteSpace(invID))
+                    {
+                        string message = "";
+                        SendEmailParameter sendEmail = SendEmail(oForm, ref message);
+
+                        if (sendEmail != null)
+                        {
+                            var client = new HttpClient();
+                            var request = new HttpRequestMessage(System.Net.Http.HttpMethod.Post, "https://api-demo.matbao.in/api/v5/invoice/send_mail");
+                            string jsonString = JsonConvert.SerializeObject(sendEmail);
+                            var content = new StringContent(jsonString, null, "application/json");
+
+                            request.Content = content;
+                            var response = await client.SendAsync(request);
+                            response.EnsureSuccessStatusCode();
+
+                            var res = await response.Content.ReadAsStringAsync();
+                            var resJson = JObject.Parse(res);
+
+                            if (resJson["status"]?.ToString() == "OK")
+                            {
+                                Globals.SapApplication.StatusBar.SetText("Gửi Email thành công", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Success);
+                            }
+                            else
+                            {
+                                if (resJson["messages"]?.ToString() == "ERR 2 - ")
+                                    Globals.SapApplication.StatusBar.SetText("Hóa đơn đã được phát hành hoặc không lấy được dữ liệu", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+                                else
+                                    Globals.SapApplication.StatusBar.SetText("Sai thông tin tài khoản hoặc mật khẩu" + res, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+                            }  
+                        }
+                        else
+                            Globals.SapApplication.StatusBar.SetText("Lỗi: " + message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+                    }
+                    else
+                        Globals.SapApplication.StatusBar.SetText("Khách hàng chưa nhập Email", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+                }
+                catch (Exception ex)
+                {
+                    Globals.SapApplication.StatusBar.SetText("Error: " + ex.Message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+                }
             }
             else if (oBtnCombo.Selected.Value == "Hủy HĐ")
             {
@@ -532,6 +594,22 @@ namespace MatBaoInvoice.Invoice
             };
 
             return download;
+        }
+
+        public SendEmailParameter SendEmail(Form oForm, ref string message)
+        {
+            DBDataSource oinv = oForm.DataSources.DBDataSources.Item("OINV");
+            DBDataSource ocrd = oForm.DataSources.DBDataSources.Item("OCRD");
+
+            var email = new SendEmailParameter
+            {
+                ApiUserName = Session.Session.apiUserName,
+                ApiPassword = Session.Session.apiPassword,
+                InvID = oinv.GetValue("U_InvID", 0).Trim(),
+                Email = ocrd.GetValue("E_Mail", 0).Trim()
+            };
+
+            return email;
         }
 
         public async Task<string> GetFkey()
