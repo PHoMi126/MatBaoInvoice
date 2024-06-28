@@ -1100,7 +1100,7 @@ namespace MatBaoInvoice.Invoice
             BubbleEvent = true;
         }
 
-        public void FORM_DATA_LOAD(string FormUID, BusinessObjectInfo events, bool BubbleEvent)
+        public void FORM_DATA_LOAD(string FormUID, BusinessObjectInfo events, out bool BubbleEvent)
         {
             BubbleEvent = true;
         }

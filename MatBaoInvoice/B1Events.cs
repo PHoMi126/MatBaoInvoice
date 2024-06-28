@@ -120,7 +120,7 @@ namespace MatBaoInvoice.Event
                     FORM_DATA_ADD(businessObjectInfo.FormUID, businessObjectInfo, out BubbleEvent);
                     break;
                 case BoEventTypes.et_FORM_DATA_LOAD:
-                    FORM_DATA_LOAD(businessObjectInfo.FormUID, businessObjectInfo, BubbleEvent);
+                    FORM_DATA_LOAD(businessObjectInfo.FormUID, businessObjectInfo, out BubbleEvent);
                     break;
                 case BoEventTypes.et_FORM_DATA_UPDATE:
                     FORM_DATA_UPDATE(businessObjectInfo.FormUID, businessObjectInfo, out BubbleEvent);
@@ -206,7 +206,7 @@ namespace MatBaoInvoice.Event
             BubbleEvent = true;
         }
 
-        private void FORM_DATA_LOAD(string FormUID, BusinessObjectInfo events, bool BubbleEvent)
+        private void FORM_DATA_LOAD(string FormUID, BusinessObjectInfo events, out bool BubbleEvent)
         {
             BubbleEvent = true;
             MBInvoice v = new MBInvoice(SBO_Application, oCompany);
