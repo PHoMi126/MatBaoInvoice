@@ -241,7 +241,9 @@ namespace MatBaoInvoice.Event
         }
         private void FORM_ACTIVATE(string FormUID, ItemEvent pVal, bool BubbleEvent)
         {
-
+            BubbleEvent = true;
+            MBInvoice v = new MBInvoice(SBO_Application, oCompany);
+            v.FORM_ACTIVATE(FormUID, pVal, out BubbleEvent);
         }
 
         private void FORM_DEACTIVATE(string FormUID, ItemEvent pVal, out bool BubbleEvent)

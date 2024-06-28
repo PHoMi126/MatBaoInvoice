@@ -54,14 +54,13 @@ namespace MatBaoInvoice.Invoice
             catch { }
         }
 
-        public void GetSignatureARInvoice(ItemEvent pVal)
+        public void GetSignatureARInvoice(BusinessObjectInfo events)
         {
             try
             {
-                oForm = SBO_Application.Forms.Item(pVal.FormUID);
-                Item oItem = oForm.Items.Add("btn1", BoFormItemTypes.it_BUTTON);
+                oForm = SBO_Application.Forms.Item(events.FormUID);
                 Item oItems = oForm.Items.Item("btn");
-                oSignatureBtn = null;
+                Item oItem = oForm.Items.Add("btn1", BoFormItemTypes.it_BUTTON);
                 oItem.Left = oItems.Left + oItems.Width + 6;
                 oItem.Top = oItems.Top;
                 oItem.Width = oItems.Width + 30;
@@ -70,9 +69,11 @@ namespace MatBaoInvoice.Invoice
                 oSignatureBtn = (Button)oItem.Specific;
                 oSignatureBtn.Caption = "Lấy chữ kí phát hành";
 
-                oSignatureBtn.Item.Enabled = false;
-
-                //oSignatureBtn.ClickBefore += new _IButtonEvents_ClickBeforeEventHandler(oBtnSignature_ClickBefore);
+                if (!isBtnEnabled)
+                {
+                    isBtnEnabled = false;
+                    oSignatureBtn.Item.Enabled = false;
+                }
             }
             catch { }
         }
@@ -190,7 +191,7 @@ namespace MatBaoInvoice.Invoice
                         var resJson = JArray.Parse(res);
 
                         var a = resJson[0] as JArray;
-                        string invID = a[0]["InvID"].ToString();
+                        string invID = a?[0]?["InvID"]?.ToString();
 
                         string fkey = await GetFkey();
 
@@ -1077,7 +1078,7 @@ namespace MatBaoInvoice.Invoice
             if (pVal.ActionSuccess == true && pVal.FormTypeEx == "133" || pVal.FormTypeEx == "60091") //AR Invoice load event
             {
                 OpenFormARInvoice(pVal);
-                GetSignatureARInvoice(pVal);
+                //GetSignatureARInvoice(pVal);
             }
 
             if (pVal.ActionSuccess == true && pVal.FormTypeEx == "179")
@@ -1098,25 +1099,31 @@ namespace MatBaoInvoice.Invoice
         public void FORM_DATA_UPDATE(string FormUID, BusinessObjectInfo events, out bool BubbleEvent)
         {
             BubbleEvent = true;
+
+            if (events.ActionSuccess == true && events.FormTypeEx == "133" || events.FormTypeEx == "60091") //AR Invoice load event
+            {
+                GetSignatureARInvoice(events);
+            }
         }
 
         public void FORM_DATA_LOAD(string FormUID, BusinessObjectInfo events, out bool BubbleEvent)
         {
             BubbleEvent = true;
+
+            if (events.ActionSuccess == true && events.FormTypeEx == "133" || events.FormTypeEx == "60091") //AR Invoice load event
+            {
+                GetSignatureARInvoice(events);
+            }
         }
 
-        private void oBtnSignature_ClickBefore(ref ItemEvent pVal, out bool BubbleEvent)
+        public void FORM_ACTIVATE(string FormUID, ItemEvent pVal, out bool BubbleEvent)
         {
             BubbleEvent = true;
 
-            try
-            {
-                SBO_Application.MessageBox("Button clicked!");
-            }
-            catch (Exception ex)
-            {
-                SBO_Application.StatusBar.SetText("Error: " + ex.Message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
-            }
+            //if (pVal.ActionSuccess == true && pVal.FormTypeEx == "133" || pVal.FormTypeEx == "60091") //AR Invoice load event
+            //{
+            //    GetSignatureARInvoice(pVal);
+            //}
         }
 
         public void EnableSignatureButton()
