@@ -19,6 +19,9 @@ namespace MatBaoInvoice.Invoice
     {
         private Application SBO_Application;
         private SAPbobsCOM.Company oCompany;
+        private Form oForm;
+        private Button oSignatureBtn;
+        private bool isBtnEnabled = false;
 
         public MBInvoice(Application SBO_Application, SAPbobsCOM.Company oCompany)
         {
@@ -26,23 +29,23 @@ namespace MatBaoInvoice.Invoice
             this.oCompany = oCompany;
         }
 
-        public void OpenFormARInvoice(ItemEvent pval)
+        public void OpenFormARInvoice(ItemEvent pVal)
         {
             try
             {
-                Form oForm = SBO_Application.Forms.Item(pval.FormUID);
+                oForm = SBO_Application.Forms.Item(pVal.FormUID);
                 Item oItem = oForm.Items.Add("btn", BoFormItemTypes.it_BUTTON_COMBO);
                 Item oItems = oForm.Items.Item("2");
                 ButtonCombo oButtonCombo = null;
-                oItem.Left = oItems.Left + oItems.Width + 5;
+                oItem.Left = oItems.Left + oItems.Width + 6;
                 oItem.Top = oItems.Top;
-                oItem.Width = oItems.Width + 20;
+                oItem.Width = oItems.Width + 25;
                 oItem.Height = oItems.Height;
                 oItem.AffectsFormMode = false;
                 oButtonCombo = (ButtonCombo)oItem.Specific;
                 oButtonCombo.Caption = "Hóa Đơn";
-                oButtonCombo.ValidValues.Add("Tạo HĐ", "Tạo HĐ");
-                oButtonCombo.ValidValues.Add("Xem HĐ", "Xem HĐ");
+                oButtonCombo.ValidValues.Add("Phát hành HĐ", "Phát hành HĐ");
+                oButtonCombo.ValidValues.Add("Đẩy HĐ", "Đẩy HĐ");
                 oButtonCombo.ValidValues.Add("Gửi Email", "Gửi Email");
                 oButtonCombo.ValidValues.Add("Hủy HĐ", "Hủy HĐ");
                 oButtonCombo.ValidValues.Add("Tải HĐ", "Tải HĐ");
@@ -51,13 +54,37 @@ namespace MatBaoInvoice.Invoice
             catch { }
         }
 
-        public async void ImportAndPublishInvoice(ItemEvent pVal)
+        public void GetSignatureARInvoice(ItemEvent pVal)
         {
-            Form oForm = SBO_Application.Forms.Item(pVal.FormUID);
+            try
+            {
+                oForm = SBO_Application.Forms.Item(pVal.FormUID);
+                Item oItem = oForm.Items.Add("btn1", BoFormItemTypes.it_BUTTON);
+                Item oItems = oForm.Items.Item("btn");
+                oSignatureBtn = null;
+                oItem.Left = oItems.Left + oItems.Width + 6;
+                oItem.Top = oItems.Top;
+                oItem.Width = oItems.Width + 30;
+                oItem.Height = oItems.Height;
+                oItem.AffectsFormMode = false;
+                oSignatureBtn = (Button)oItem.Specific;
+                oSignatureBtn.Caption = "Lấy chữ kí phát hành";
+
+                oSignatureBtn.Item.Enabled = false;
+
+                //oSignatureBtn.ClickBefore += new _IButtonEvents_ClickBeforeEventHandler(oBtnSignature_ClickBefore);
+            }
+            catch { }
+        }
+
+        public async void ARInvoice(ItemEvent pVal)
+        {
+            oForm = SBO_Application.Forms.Item(pVal.FormUID);
             DBDataSource oinv = oForm.DataSources.DBDataSources.Item("OINV");
             DBDataSource ocrd = oForm.DataSources.DBDataSources.Item("OCRD");
             Documents invoice = null;
             ButtonCombo oBtnCombo = (ButtonCombo)oForm.Items.Item("btn").Specific;
+            Button oBtn = (Button)oForm.Items.Item("btn1").Specific;
             Documents inv = (Documents)oCompany.GetBusinessObject(BoObjectTypes.oInvoices);
             BusinessPartners oBusPartner;
             oBusPartner = (BusinessPartners)oCompany.GetBusinessObject(BoObjectTypes.oBusinessPartners);
@@ -66,7 +93,7 @@ namespace MatBaoInvoice.Invoice
             if (oBtnCombo.Selected == null)
                 return;
 
-            if (oBtnCombo.Selected.Value == "Tạo HĐ")
+            if (oBtnCombo.Selected.Value == "Phát hành HĐ")
             {
                 if (oForm.Mode != BoFormMode.fm_OK_MODE)
                     Globals.SapApplication.StatusBar.SetText
@@ -77,7 +104,7 @@ namespace MatBaoInvoice.Invoice
                     {
                         string message = "";
 
-                        PublishInvoiceParameters invoiceMD = BuildInvoice(oForm, ref message);
+                        PublishInvoiceParameters invoiceMD = ImportAndPublish(oForm, ref message);
 
                         var client = new HttpClient();
                         var request = new HttpRequestMessage(System.Net.Http.HttpMethod.Post, "https://api-demo.matbao.in/api/v2/invoice/importAndPublishInv");
@@ -89,7 +116,7 @@ namespace MatBaoInvoice.Invoice
                         response.EnsureSuccessStatusCode();
 
                         var res = await response.Content.ReadAsStringAsync();
-                        var resJson = JObject.Parse(res);
+                        var resJson = JArray.Parse(res);
 
                         var a = resJson["data"] as JArray;
                         string invID = a[0]["InvID"].ToString();
@@ -107,7 +134,7 @@ namespace MatBaoInvoice.Invoice
                         if (invoiceMD != null)
                         {
                             string url = "https://api-demo.matbao.in/api/v2/invoice/importAndPublishInv";
-                            ServiceResult serv = await CallARAPIAsync(invoiceMD, url);
+                            ServiceResult serv = await CallARAPIPublish(invoiceMD, url);
 
                             if (string.IsNullOrEmpty(serv.Message))
                             {
@@ -118,7 +145,7 @@ namespace MatBaoInvoice.Invoice
                                 invoice.UserFields.Fields.Item("U_InvID").Value = invID;
                                 invoice.Update();
 
-                                Globals.SapApplication.StatusBar.SetText("Publish AR Sucess", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Success);
+                                Globals.SapApplication.StatusBar.SetText("Publish AR Sucessful", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Success);
                             }
                             else
                             {
@@ -137,13 +164,81 @@ namespace MatBaoInvoice.Invoice
                     }
                 }
             }
-            else if (oBtnCombo.Selected.Value == "Xem HĐ")
+            else if (oBtnCombo.Selected.Value == "Đẩy HĐ")
             {
                 try
                 {
+                    if (oForm.Mode != BoFormMode.fm_OK_MODE)
+                        Globals.SapApplication.StatusBar.SetText
+                            ("Cập nhập hoặc lưu phiếu trước khi phát hành hóa đơn", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Warning);
+                    else
+                    {
+                        string message = "";
 
+                        ImportInvoicesParameter invoiceMD = Import(oForm, ref message);
+
+                        var client = new HttpClient();
+                        var request = new HttpRequestMessage(System.Net.Http.HttpMethod.Post, "https://api-demo.matbao.in/api/v5/invoice/import");
+                        string jsonString = JsonConvert.SerializeObject(invoiceMD);
+                        var content = new StringContent(jsonString, null, "application/json");
+
+                        request.Content = content;
+                        var response = await client.SendAsync(request);
+                        response.EnsureSuccessStatusCode();
+
+                        var res = await response.Content.ReadAsStringAsync();
+                        var resJson = JArray.Parse(res);
+
+                        var a = resJson[0] as JArray;
+                        string invID = a[0]["InvID"].ToString();
+
+                        string fkey = await GetFkey();
+
+                        if (string.IsNullOrEmpty(fkey) || string.IsNullOrEmpty(invID))
+                        {
+                            return;
+                        }
+
+                        foreach (var invoicesMD in invoiceMD.Invoices)
+                        {
+                            invoicesMD.Fkey = fkey;
+                            invoicesMD.SO = "KC001" + "26";
+
+                            if (invoicesMD != null)
+                            {
+                                string url = "https://api-demo.matbao.in/api/v5/invoice/import";
+                                ServiceResult serv = await CallARAPIImport(invoiceMD, url);
+
+                                if (string.IsNullOrEmpty(serv.Message))
+                                {
+                                    invoice = (Documents)oCompany.GetBusinessObject(BoObjectTypes.oInvoices);
+                                    string DocEntry = oinv.GetValue("DocEntry", 0).Trim();
+                                    invoice.GetByKey(int.Parse(DocEntry));
+                                    invoice.UserFields.Fields.Item("U_FKEY").Value = fkey;
+                                    invoice.UserFields.Fields.Item("U_InvID").Value = invID;
+                                    invoice.Update();
+
+                                    Globals.SapApplication.StatusBar.SetText("Import AR Sucessful", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Success);
+
+                                    EnableSignatureButton();
+                                }
+                                else
+                                {
+                                    Globals.SapApplication.StatusBar.SetText("Failed to import AR: " + serv.Message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+
+                                    if (!string.IsNullOrEmpty(serv.ErrorCode))
+                                        Globals.SapApplication.StatusBar.SetText("Error code: " + serv.ErrorCode, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+                                }
+                            }
+                            else
+                                Globals.SapApplication.StatusBar.SetText("Error creating AR: " + message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+                        }
+                    }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Globals.SapApplication.StatusBar.SetText("Unexpected error: " + ex.Message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+                }
             }
             else if (oBtnCombo.Selected.Value == "Gửi Email")
             {
@@ -211,7 +306,7 @@ namespace MatBaoInvoice.Invoice
                                 if (cancelInvoice != null)
                                 {
                                     string url = "https://api-demo.matbao.in/api/v2/invoice/CancelInvoice";
-                                    ServiceResult serv = await CallARAPIAsync(cancelInvoice, url);
+                                    ServiceResult serv = await CallARAPIPublish(cancelInvoice, url);
 
                                     if (serv.Status == "OK")
                                         Globals.SapApplication.StatusBar.SetText("Hóa đơn hủy thành công", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Success);
@@ -287,7 +382,41 @@ namespace MatBaoInvoice.Invoice
             }
         }
 
-        public PublishInvoiceParameters BuildInvoice(Form oForm, ref string messeage)
+        public void OpenFormARCreditMemo(ItemEvent pVal)
+        {
+            try
+            {
+                Form oForm = SBO_Application.Forms.Item(pVal.FormUID);
+                Item oItem = oForm.Items.Add("btn", BoFormItemTypes.it_BUTTON);
+                Item oItems = oForm.Items.Item("2");
+                Button oButton = null;
+                oItem.Left = oItems.Left + oItems.Width + 6;
+                oItem.Top = oItems.Top;
+                oItem.Width = oItems.Width + 25;
+                oItem.Height = oItems.Height;
+                oItem.AffectsFormMode = false;
+                oButton = (Button)oItem.Specific;
+                oButton.Caption = "Chỉnh sửa HĐ";
+            }
+            catch { }
+        }
+
+        public async void ARCreditMemo(ItemEvent pVal)
+        {
+            Form oForm = SBO_Application.Forms.Item(pVal.FormUID);
+            DBDataSource orin = oForm.DataSources.DBDataSources.Item("ORIN");
+            DBDataSource ocrd = oForm.DataSources.DBDataSources.Item("OCRD");
+            Documents invoice = null;
+            Button oBtn = (Button)oForm.Items.Item("btn").Specific;
+            Documents inv = (Documents)oCompany.GetBusinessObject(BoObjectTypes.oInvoices);
+            BusinessPartners oBusPartner;
+            oBusPartner = (BusinessPartners)oCompany.GetBusinessObject(BoObjectTypes.oBusinessPartners);
+            oBusPartner.GetByKey(orin.GetValue("CardCode", orin.Offset));
+
+
+        }
+
+        public PublishInvoiceParameters ImportAndPublish(Form oForm, ref string messeage)
         {
             decimal exchangeRate = 1, quantity = 1, unitPrice = 0, vatDiscnt = 0;
             decimal? discountRate = 0;
@@ -358,7 +487,7 @@ namespace MatBaoInvoice.Invoice
                             Amount = (double)(unitPrice * quantity) + (double)(unitPrice * quantity * (vatDiscnt / 100)), // Tổng tiền hàng
                             Remark = "hhh",
                             ProdAttr = 1
-                        }); 
+                        });
                     }
 
                     string parseDate = oinv.GetValue("DocDate", 0).ToString();
@@ -370,7 +499,7 @@ namespace MatBaoInvoice.Invoice
                     decimal vatAmount = decimal.Parse(oinv.GetValue("VatSum", 0).Trim());
                     double Total = (double)(docTotal - vatAmount);
 
-                    PublishInvoiceParameters newInvoice = new PublishInvoiceParameters()
+                    PublishInvoiceParameters publishInv = new PublishInvoiceParameters()
                     {
                         ApiUserName = Session.Session.apiUserName,
                         ApiPassword = Session.Session.apiPassword,
@@ -393,10 +522,10 @@ namespace MatBaoInvoice.Invoice
                         Total = Total,
                         Products = products
                     };
-                    string amountInWords = Globals.ConvertToVietnamese((decimal)newInvoice.Amount);
-                    newInvoice.AmountInWords = amountInWords;
+                    string amountInWords = Globals.ConvertToVietnamese((decimal)publishInv.Amount);
+                    publishInv.AmountInWords = amountInWords;
 
-                    return newInvoice;
+                    return publishInv;
                 }
                 else
                 {
@@ -462,7 +591,7 @@ namespace MatBaoInvoice.Invoice
                     decimal vatAmount = decimal.Parse(oinv.GetValue("VatSum", 0).Trim());
                     double Total = (double)(docTotal - vatAmount);
 
-                    PublishInvoiceParameters newInvoice = new PublishInvoiceParameters()
+                    PublishInvoiceParameters publishInv = new PublishInvoiceParameters()
                     {
                         ApiUserName = Session.Session.apiUserName,
                         ApiPassword = Session.Session.apiPassword,
@@ -485,10 +614,10 @@ namespace MatBaoInvoice.Invoice
                         Total = Total,
                         Products = products
                     };
-                    string amountInWords = Globals.ConvertToVietnamese((decimal)newInvoice.Amount);
-                    newInvoice.AmountInWords = amountInWords;
+                    string amountInWords = Globals.ConvertToVietnamese((decimal)publishInv.Amount);
+                    publishInv.AmountInWords = amountInWords;
 
-                    return newInvoice;
+                    return publishInv;
                 }
             }
             catch(Exception ex)
@@ -498,7 +627,303 @@ namespace MatBaoInvoice.Invoice
             }
         }
 
-        public async Task<ServiceResult> CallARAPIAsync(PublishInvoiceParameters p, string url)
+        public ImportInvoicesParameter Import(Form oForm, ref string message)
+        {
+            decimal exchangeRate = 1, quantity = 1, unitPrice = 0, vatDiscnt = 0;
+            decimal? discountRate = 0;
+            int HousActKey = -1;
+            string VatGroup = "";
+
+            List<Invoices> invoice = new List<Invoices>();
+            List<Products> product = new List<Products>();
+
+            try
+            {
+                HouseBankAccounts oHouseBankAccounts;
+                oHouseBankAccounts = (HouseBankAccounts)oCompany.GetBusinessObject(BoObjectTypes.oHouseBankAccounts);
+                DBDataSource oinv = oForm.DataSources.DBDataSources.Item("OINV");
+                DBDataSource inv1 = oForm.DataSources.DBDataSources.Item("INV1");
+                DBDataSource ocrd = oForm.DataSources.DBDataSources.Item("OCRD");
+                int.TryParse(ocrd.GetValue("HousActKey", ocrd.Offset), out HousActKey);
+                oHouseBankAccounts.GetByKey(HousActKey);
+
+                if (oinv.GetValue("DocCur", oinv.Offset) == "VND")
+                {
+                    for (int i = 0; i < inv1.Size; i++)
+                    {
+                        unitPrice = decimal.Parse(inv1.GetValue("PriceBefDi", i).Trim());
+                        quantity = decimal.Parse(inv1.GetValue("Quantity", i).Trim());
+                        exchangeRate = decimal.Parse(inv1.GetValue("Rate", i).Trim());
+                        discountRate = decimal.Parse(inv1.GetValue("DiscPrcnt", i).Trim());
+                        vatDiscnt = decimal.Parse(inv1.GetValue("VatPrcnt", i).Trim());
+                        VatGroup = inv1.GetValue("VatGroup", i).Trim();
+                        string code = inv1.GetValue("Itemcode", i).Trim();
+                        string prodName = inv1.GetValue("Dscription", i).Trim();
+                        string prodUnit = inv1.GetValue("UomCode", i).Trim();
+                        string remark = inv1.GetValue("U_Ghichu", i).Trim();
+
+                        switch (VatGroup)
+                        {
+                            case "SO8":
+                                VatGroup = "8";
+                                break;
+                            case "SO10":
+                                VatGroup = "10";
+                                break;
+                            case "SO5":
+                                VatGroup = "5";
+                                break;
+                            case "SO0":
+                                VatGroup = "0";
+                                break;
+                            case "SO":
+                                VatGroup = "KCT";
+                                break;
+                            default:
+                                // Handle other cases if necessary
+                                break;
+                        }
+
+                        product.Add(new Products()
+                        {
+                            Code = code,
+                            ProdName = prodName,
+                            ProdUnit = prodUnit,
+                            ProdQuantity = (double)quantity,
+                            DiscountAmount = (double)(unitPrice * quantity * exchangeRate * (discountRate / 100 ?? 0)),
+                            Discount = (double)discountRate,
+                            ProdPrice = (double)unitPrice,
+                            VATRate = (double)vatDiscnt,
+                            VATAmount = (double)(unitPrice * quantity * (vatDiscnt / 100)),
+                            Total = (double)(unitPrice * quantity),
+                            Amount = (double)(unitPrice * quantity) + (double)(unitPrice * quantity * (vatDiscnt / 100)), // Tổng tiền hàng
+                            Remark = "hhh",
+                            ProdAttr = 1
+                        });
+
+                        string parseDate = oinv.GetValue("DocDate", 0).ToString();
+
+                        //Parsing a date string in a specific format using InvariantCulture
+                        string arisingDate = DateTime.ParseExact(parseDate, "yyyyMMdd", CultureInfo.InvariantCulture).ToString("dd/MM/yyyy");
+
+                        decimal docTotal = decimal.Parse(oinv.GetValue("DocTotal", 0).Trim());
+                        decimal vatAmount = decimal.Parse(oinv.GetValue("VatSum", 0).Trim());
+                        double Total = (double)(docTotal - vatAmount);
+
+                        invoice.Add(new Invoices()
+                        {
+                            Fkey = "4FEB02F3B6",
+                            MaKH = oinv.GetValue("CardCode", 0).Trim(),
+                            Buyer = ocrd.GetValue("CardName", 0).Trim(),
+                            CusName = ocrd.GetValue("CardName", 0).Trim(),
+                            CusEmail = ocrd.GetValue("E_mail", 0).Trim(),
+                            CusAddress = ocrd.GetValue("CardName", 0).Trim(),
+                            CusTaxCode = ocrd.GetValue("LicTradNum", 0).Trim(),
+                            PaymentMethod = oinv.GetValue("PeyMethod", 0).Trim(),
+                            ArisingDate = arisingDate,
+                            SO = oinv.GetValue("DocNum", 0).Trim(),
+                            DonViTienTe = oinv.GetValue("DocCur", 0).Trim(),
+                            TyGia = (double)exchangeRate,
+                            VATAmount = (double)vatAmount,
+                            Amount = (double)docTotal,
+                            Total = Total,
+                            Products = product
+                        });
+                    }
+
+                    ImportInvoicesParameter importInv = new ImportInvoicesParameter()
+                    {
+                        ApiUserName = Session.Session.apiUserName,
+                        ApiPassword = Session.Session.apiPassword,
+                        ApiInvPattern = Session.Session.apiInvPattern,
+                        ApiInvSerial = Session.Session.apiInvSerial,
+                        Invoices = invoice
+                    };
+
+                    foreach (var invoices in invoice)
+                    {
+                        string amountInWords = Globals.ConvertToVietnamese((decimal)invoices.Amount);
+                        invoices.AmountInWords = amountInWords;
+                    }
+
+                    return importInv;
+                }
+                else
+                {
+                    for (int i = 0; i < inv1.Size; i++)
+                    {
+                        unitPrice = decimal.Parse(inv1.GetValue("PriceBefDi", i).Trim());
+                        quantity = decimal.Parse(inv1.GetValue("Quantity", i).Trim());
+                        exchangeRate = decimal.Parse(inv1.GetValue("Rate", i).Trim());
+                        discountRate = decimal.Parse(inv1.GetValue("DiscPrcnt", i).Trim());
+                        vatDiscnt = decimal.Parse(inv1.GetValue("VatPrcnt", i).Trim());
+                        VatGroup = inv1.GetValue("VatGroup", i).Trim();
+                        string code = inv1.GetValue("Itemcode", i).Trim();
+                        string prodName = inv1.GetValue("Dscription", i).Trim();
+                        string prodUnit = inv1.GetValue("UomCode", i).Trim();
+                        string remark = inv1.GetValue("U_Ghichu", i).Trim();
+
+                        switch (VatGroup)
+                        {
+                            case "SO8":
+                                VatGroup = "8";
+                                break;
+                            case "SO10":
+                                VatGroup = "10";
+                                break;
+                            case "SO5":
+                                VatGroup = "5";
+                                break;
+                            case "SO0":
+                                VatGroup = "0";
+                                break;
+                            case "SO":
+                                VatGroup = "KCT";
+                                break;
+                            default:
+                                // Handle other cases if necessary
+                                break;
+                        }
+
+                        product.Add(new Products()
+                        {
+                            Code = code,
+                            ProdName = prodName,
+                            ProdUnit = prodUnit,
+                            ProdQuantity = (double)quantity,
+                            DiscountAmount = (double)(unitPrice * quantity * exchangeRate * (discountRate / 100 ?? 0)),
+                            Discount = (double)discountRate,
+                            ProdPrice = (double)unitPrice,
+                            VATRate = (double)vatDiscnt,
+                            VATAmount = (double)(unitPrice * quantity * (vatDiscnt / 100)),
+                            Total = (double)(unitPrice * quantity),
+                            Amount = (double)(unitPrice * quantity) + (double)(unitPrice * quantity * (vatDiscnt / 100)), // Tổng tiền hàng
+                            Remark = "hhh",
+                            ProdAttr = 1
+                        });
+
+                        string parseDate = oinv.GetValue("DocDate", 0).ToString();
+
+                        //Parsing a date string in a specific format using InvariantCulture
+                        string arisingDate = DateTime.ParseExact(parseDate, "yyyyMMdd", CultureInfo.InvariantCulture).ToString("dd/MM/yyyy");
+
+                        decimal docTotal = decimal.Parse(oinv.GetValue("DocTotal", 0).Trim());
+                        decimal vatAmount = decimal.Parse(oinv.GetValue("VatSum", 0).Trim());
+                        double Total = (double)(docTotal - vatAmount);
+
+                        invoice.Add(new Invoices()
+                        {
+                            Fkey = "4FEB02F3B6",
+                            MaKH = oinv.GetValue("CardCode", 0).Trim(),
+                            Buyer = ocrd.GetValue("CardName", 0).Trim(),
+                            CusName = ocrd.GetValue("CardName", 0).Trim(),
+                            CusEmail = ocrd.GetValue("E_mail", 0).Trim(),
+                            CusAddress = ocrd.GetValue("CardName", 0).Trim(),
+                            CusTaxCode = ocrd.GetValue("LicTradNum", 0).Trim(),
+                            PaymentMethod = oinv.GetValue("PeyMethod", 0).Trim(),
+                            ArisingDate = arisingDate,
+                            SO = oinv.GetValue("DocNum", 0).Trim(),
+                            DonViTienTe = oinv.GetValue("DocCur", 0).Trim(),
+                            TyGia = (double)exchangeRate,
+                            VATAmount = (double)vatAmount,
+                            Amount = (double)docTotal,
+                            Total = Total,
+                            Products = product
+                        });
+                    }
+
+                    ImportInvoicesParameter importInv = new ImportInvoicesParameter()
+                    {
+                        ApiUserName = Session.Session.apiUserName,
+                        ApiPassword = Session.Session.apiPassword,
+                        ApiInvPattern = Session.Session.apiInvPattern,
+                        ApiInvSerial = Session.Session.apiInvSerial,
+                        Invoices = invoice
+                    };
+
+                    foreach (var invoices in invoice)
+                    {
+                        string amountInWords = Globals.ConvertToVietnamese((decimal)invoices.Amount);
+                        invoices.AmountInWords = amountInWords;
+                    }
+
+                    return importInv;
+                }
+            }
+            catch (Exception ex)
+            {
+                message = ex.Message;
+                return null;
+            }
+        }
+
+        public async Task<ServiceResult> CallARAPIPublish(PublishInvoiceParameters p, string url)
+        {
+            string json = JsonConvert.SerializeObject(p);
+
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    var request = new HttpRequestMessage(System.Net.Http.HttpMethod.Post, url);
+                    request.Content = content;
+                    var response = await client.SendAsync(request);
+                    response.EnsureSuccessStatusCode();
+                    var res = await response.Content.ReadAsStringAsync();
+
+                    var responseObject = JObject.Parse(res);
+                    var status = responseObject["status"].ToString();
+                    var message = responseObject["messages"]?.ToString();
+                    var data = responseObject["data"] as JArray;
+
+                    var serviceResult = new ServiceResult
+                    {
+                        Status = status,
+                        Message = message,
+                        ResponseContent = res
+                    };
+
+                    if (status == "OK")
+                    {
+                        serviceResult.Success = true;
+                        serviceResult.InvNo = data?[0]?["InvNo"]?.ToString();
+                    }
+                    else
+                    {
+                        serviceResult.Success = false;
+                        if (message.Contains("Login Success"))
+                        {
+                            serviceResult.ErrorCode = "ERR:1";
+                        }
+                        else if (message.Contains("Login Fail"))
+                        {
+                            serviceResult.ErrorCode = "ERR:2";
+                        }
+                    }
+
+                    return serviceResult;
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                return new ServiceResult
+                {
+                    Success = false,
+                    Message = "Request error: " + ex.Message
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ServiceResult
+                {
+                    Success = false,
+                    Message = "Unexpected error: " + ex.Message
+                };
+            }
+        }
+
+        public async Task<ServiceResult> CallARAPIImport(ImportInvoicesParameter p, string url)
         {
             string json = JsonConvert.SerializeObject(p);
 
@@ -650,13 +1075,19 @@ namespace MatBaoInvoice.Invoice
         public void FORM_LOAD(string formUID, ItemEvent pVal, bool BubbleEvent)
         {
             if (pVal.ActionSuccess == true && pVal.FormTypeEx == "133" || pVal.FormTypeEx == "60091") //AR Invoice load event
+            {
                 OpenFormARInvoice(pVal);
+                GetSignatureARInvoice(pVal);
+            }
+
+            if (pVal.ActionSuccess == true && pVal.FormTypeEx == "179")
+                OpenFormARCreditMemo(pVal);
         }
 
         public void ITEM_PRESSED(string formUID, ItemEvent pVal, bool BubbleEvent)
         {
             if (pVal.ActionSuccess == true && pVal.FormTypeEx == "133" && pVal.ItemUID == "btn")
-                ImportAndPublishInvoice(pVal);
+                ARInvoice(pVal);
         }
 
         public void FORM_DATA_ADD(string FormUID, BusinessObjectInfo events, out bool BubbleEvent)
@@ -667,6 +1098,38 @@ namespace MatBaoInvoice.Invoice
         public void FORM_DATA_UPDATE(string FormUID, BusinessObjectInfo events, out bool BubbleEvent)
         {
             BubbleEvent = true;
+        }
+
+        public void FORM_DATA_LOAD(string FormUID, BusinessObjectInfo events, bool BubbleEvent)
+        {
+            BubbleEvent = true;
+        }
+
+        private void oBtnSignature_ClickBefore(ref ItemEvent pVal, out bool BubbleEvent)
+        {
+            BubbleEvent = true;
+
+            try
+            {
+                SBO_Application.MessageBox("Button clicked!");
+            }
+            catch (Exception ex)
+            {
+                SBO_Application.StatusBar.SetText("Error: " + ex.Message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+            }
+        }
+
+        public void EnableSignatureButton()
+        {
+            try
+            {
+                if (oSignatureBtn != null && isBtnEnabled)
+                {
+                    isBtnEnabled = true;
+                    oSignatureBtn.Item.Enabled = true;
+                }
+            }
+            catch { }
         }
     }
 }

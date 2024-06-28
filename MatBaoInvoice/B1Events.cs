@@ -208,7 +208,9 @@ namespace MatBaoInvoice.Event
 
         private void FORM_DATA_LOAD(string FormUID, BusinessObjectInfo events, bool BubbleEvent)
         {
-
+            BubbleEvent = true;
+            MBInvoice v = new MBInvoice(SBO_Application, oCompany);
+            v.FORM_DATA_LOAD(FormUID, events, out BubbleEvent);
         }
 
         private void FORM_DATA_UPDATE(string FormUID, BusinessObjectInfo events, out bool BubbleEvent)
