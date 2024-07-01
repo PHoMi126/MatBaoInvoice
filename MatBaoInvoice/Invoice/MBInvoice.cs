@@ -649,9 +649,7 @@ namespace MatBaoInvoice.Invoice
                         });
                     }
 
-                    string parseDate = oinv.GetValue("DocDate", 0).ToString();
-                    //Parsing a date string in a specific format using InvariantCulture
-                    string arisingDate = DateTime.ParseExact(parseDate, "yyyyMMdd", CultureInfo.InvariantCulture).ToString("dd/MM/yyyy");
+                    string arisingDate = DateTime.Now.Date.ToString("dd/MM/yyyy");
 
                     decimal docTotal = decimal.Parse(oinv.GetValue("DocTotal", 0).Trim());
                     decimal vatAmount = decimal.Parse(oinv.GetValue("VatSum", 0).Trim());
@@ -777,7 +775,7 @@ namespace MatBaoInvoice.Invoice
 
                         invoice.Add(new Invoices()
                         {
-                            Fkey = "4FEB02F3B6",
+                            Fkey = "",
                             MaKH = oinv.GetValue("CardCode", 0).Trim(),
                             Buyer = ocrd.GetValue("CardName", 0).Trim(),
                             CusName = ocrd.GetValue("CardName", 0).Trim(),
@@ -867,10 +865,7 @@ namespace MatBaoInvoice.Invoice
                             ProdAttr = 1
                         });
 
-                        string parseDate = oinv.GetValue("DocDate", 0).ToString();
-
-                        //Parsing a date string in a specific format using InvariantCulture
-                        string arisingDate = DateTime.ParseExact(parseDate, "yyyyMMdd", CultureInfo.InvariantCulture).ToString("dd/MM/yyyy");
+                        string arisingDate = DateTime.Now.Date.ToString("dd/MM/yyyy");
 
                         decimal docTotal = decimal.Parse(oinv.GetValue("DocTotal", 0).Trim());
                         decimal vatAmount = decimal.Parse(oinv.GetValue("VatSum", 0).Trim());
@@ -878,7 +873,7 @@ namespace MatBaoInvoice.Invoice
 
                         invoice.Add(new Invoices()
                         {
-                            Fkey = "4FEB02F3B6",
+                            Fkey = "",
                             MaKH = oinv.GetValue("CardCode", 0).Trim(),
                             Buyer = ocrd.GetValue("CardName", 0).Trim(),
                             CusName = ocrd.GetValue("CardName", 0).Trim(),
@@ -1178,10 +1173,7 @@ namespace MatBaoInvoice.Invoice
         {
             DBDataSource oinv = oForm.DataSources.DBDataSources.Item("OINV");
 
-            string parseDate = oinv.GetValue("DocDate", 0).ToString();
-
-            //Parsing a date string in a specific format using InvariantCulture
-            string arisingDate = DateTime.ParseExact(parseDate, "yyyyMMdd", CultureInfo.InvariantCulture).ToString("dd/MM/yyyy");
+            string arisingDate = DateTime.Now.Date.ToString("dd/MM/yyyy");
 
             var issueInv = new IssueInvoiceParameter
             {
