@@ -82,6 +82,7 @@
     <Compile Include="Models\ErrorCodes.cs" />
     <Compile Include="Models\Header.cs" />
     <Compile Include="Models\ImportInvoicesParameter.cs" />
+    <Compile Include="Models\IssueInvoiceParameter.cs" />
     <Compile Include="Models\OperationResults.cs" />
     <Compile Include="Models\PublishInvoiceParameters.cs" />
     <Compile Include="Models\SendEmailParameter.cs" />

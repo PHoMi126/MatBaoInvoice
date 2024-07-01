@@ -29,6 +29,7 @@ namespace MatBaoInvoice.Invoice
             this.oCompany = oCompany;
         }
 
+        #region Nút Combo
         public void OpenFormARInvoice(ItemEvent pVal)
         {
             try
@@ -53,8 +54,10 @@ namespace MatBaoInvoice.Invoice
             }
             catch { }
         }
+        #endregion
 
-        public void GetSignatureARInvoice(BusinessObjectInfo events)
+        #region Nút kí HĐ nháp
+        public void SignatureBtn(ItemEvent events)
         {
             try
             {
@@ -77,6 +80,56 @@ namespace MatBaoInvoice.Invoice
             }
             catch { }
         }
+        #endregion
+
+        #region function kí HĐ nháp
+        public async void SignatureARInvoice(ItemEvent events)
+        {
+            oForm = SBO_Application.Forms.Item(events.FormUID);
+            DBDataSource oinv = oForm.DataSources.DBDataSources.Item("OINV");
+            DBDataSource ocrd = oForm.DataSources.DBDataSources.Item("OCRD");
+            Button oBtn = (Button)oForm.Items.Item("btn1").Specific;
+            Documents inv = (Documents)oCompany.GetBusinessObject(BoObjectTypes.oInvoices);
+            BusinessPartners oBusPartner;
+            oBusPartner = (BusinessPartners)oCompany.GetBusinessObject(BoObjectTypes.oBusinessPartners);
+            oBusPartner.GetByKey(oinv.GetValue("CardCode", oinv.Offset));
+
+            string fkey = oinv.GetValue("U_FKEY", oinv.Offset);
+            string invID = oinv.GetValue("U_InvID", oinv.Offset);
+
+            if (!string.IsNullOrWhiteSpace(fkey))
+            {
+                string message = "";
+                IssueInvoiceParameter invoiceMD = IssueDraftInv(oForm, ref message);
+
+                if (invoiceMD != null)
+                {
+                    string url = "https://api-demo.matbao.in/api/v1/digitalsignature/signinv";
+                    ServiceResult serv = await IssueInvoice(invoiceMD, url);
+
+                    var client = new HttpClient();
+                    var request = new HttpRequestMessage(System.Net.Http.HttpMethod.Post, url);
+                    string jsonString = JsonConvert.SerializeObject(invoiceMD);
+                    var content = new StringContent(jsonString, null, "application/json");
+
+                    request.Content = content;
+                    var response = await client.SendAsync(request);
+                    response.EnsureSuccessStatusCode();
+
+                    string res = await response.Content.ReadAsStringAsync();
+
+                    JObject responseObject = JObject.Parse(res);
+
+                    if (responseObject["status"]?.ToString() == "OK")
+                        Globals.SapApplication.StatusBar.SetText("Lấy chữ kí thành công", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Success);
+                    else
+                        Globals.SapApplication.StatusBar.SetText("Lỗi lấy chữ kí: " + serv.Message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+                }
+            }
+            else
+                Globals.SapApplication.StatusBar.SetText("Thiếu Fkey", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+        }
+        #endregion
 
         public async void ARInvoice(ItemEvent pVal)
         {
@@ -85,7 +138,6 @@ namespace MatBaoInvoice.Invoice
             DBDataSource ocrd = oForm.DataSources.DBDataSources.Item("OCRD");
             Documents invoice = null;
             ButtonCombo oBtnCombo = (ButtonCombo)oForm.Items.Item("btn").Specific;
-            Button oBtn = (Button)oForm.Items.Item("btn1").Specific;
             Documents inv = (Documents)oCompany.GetBusinessObject(BoObjectTypes.oInvoices);
             BusinessPartners oBusPartner;
             oBusPartner = (BusinessPartners)oCompany.GetBusinessObject(BoObjectTypes.oBusinessPartners);
@@ -94,6 +146,7 @@ namespace MatBaoInvoice.Invoice
             if (oBtnCombo.Selected == null)
                 return;
 
+            #region Phát hành HĐ
             if (oBtnCombo.Selected.Value == "Phát hành HĐ")
             {
                 if (oForm.Mode != BoFormMode.fm_OK_MODE)
@@ -166,13 +219,16 @@ namespace MatBaoInvoice.Invoice
                     }
                 }
             }
+            #endregion
+
+            #region HĐ nháp
             else if (oBtnCombo.Selected.Value == "HĐ nháp")
             {
                 try
                 {
                     if (oForm.Mode != BoFormMode.fm_OK_MODE)
                         Globals.SapApplication.StatusBar.SetText
-                            ("Cập nhập hoặc lưu phiếu trước khi phát hành hóa đơn", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Warning);
+                            ("Cập nhập hoặc lưu phiếu trước khi tạo hóa đơn nháp", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Warning);
                     else
                     {
                         string message = "";
@@ -204,7 +260,7 @@ namespace MatBaoInvoice.Invoice
                         foreach (var invoicesMD in invoiceMD.Invoices)
                         {
                             invoicesMD.Fkey = fkey;
-                            invoicesMD.SO = "KC001" + "28";
+                            invoicesMD.SO = "KC001" + "29";
 
                             if (invoicesMD != null)
                             {
@@ -242,6 +298,9 @@ namespace MatBaoInvoice.Invoice
                     Globals.SapApplication.StatusBar.SetText("Unexpected error: " + ex.Message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
                 }
             }
+            #endregion
+
+            #region Gửi email
             else if (oBtnCombo.Selected.Value == "Gửi Email")
             {
                 try
@@ -290,6 +349,9 @@ namespace MatBaoInvoice.Invoice
                     Globals.SapApplication.StatusBar.SetText("Error: " + ex.Message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
                 }
             }
+            #endregion
+
+            #region Hủy HĐ
             else if (oBtnCombo.Selected.Value == "Hủy HĐ")
             {
                 try
@@ -313,7 +375,7 @@ namespace MatBaoInvoice.Invoice
                                     if (serv.Status == "OK")
                                         Globals.SapApplication.StatusBar.SetText("Hóa đơn hủy thành công", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Success);
                                     else
-                                        Globals.SapApplication.StatusBar.SetText("Hủy hóa đơn thất bại", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
+                                        Globals.SapApplication.StatusBar.SetText("Hủy hóa đơn thất bại: " + serv.Message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
                                 }
                                 else
                                     Globals.SapApplication.StatusBar.SetText("Lỗi: " + message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
@@ -337,6 +399,9 @@ namespace MatBaoInvoice.Invoice
                     Globals.SapApplication.StatusBar.SetText("Error: " + ex.Message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
                 }
             }
+            #endregion
+
+            #region Tải HĐ
             else if (oBtnCombo.Selected.Value == "Tải HĐ")
             {
                 try
@@ -382,8 +447,10 @@ namespace MatBaoInvoice.Invoice
                     Globals.SapApplication.StatusBar.SetText("Error: " + ex.Message, BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Error);
                 }
             }
+            #endregion
         }
 
+        #region Nút chỉnh sửa HĐ
         public void OpenFormARCreditMemo(ItemEvent pVal)
         {
             try
@@ -402,6 +469,7 @@ namespace MatBaoInvoice.Invoice
             }
             catch { }
         }
+        #endregion
 
         public async void ARCreditMemo(ItemEvent pVal)
         {
@@ -418,6 +486,7 @@ namespace MatBaoInvoice.Invoice
 
         }
 
+        #region Model phát hành HĐ
         public PublishInvoiceParameters ImportAndPublish(Form oForm, ref string messeage)
         {
             decimal exchangeRate = 1, quantity = 1, unitPrice = 0, vatDiscnt = 0;
@@ -491,11 +560,7 @@ namespace MatBaoInvoice.Invoice
                             ProdAttr = 1
                         });
                     }
-
-                    string parseDate = oinv.GetValue("DocDate", 0).ToString();
-
-                    //Parsing a date string in a specific format using InvariantCulture
-                    string arisingDate = DateTime.ParseExact(parseDate, "yyyyMMdd", CultureInfo.InvariantCulture).ToString("dd/MM/yyyy");
+                    string arisingDate = DateTime.Now.Date.ToString("dd/MM/yyyy");
 
                     decimal docTotal = decimal.Parse(oinv.GetValue("DocTotal", 0).Trim());
                     decimal vatAmount = decimal.Parse(oinv.GetValue("VatSum", 0).Trim());
@@ -585,7 +650,6 @@ namespace MatBaoInvoice.Invoice
                     }
 
                     string parseDate = oinv.GetValue("DocDate", 0).ToString();
-
                     //Parsing a date string in a specific format using InvariantCulture
                     string arisingDate = DateTime.ParseExact(parseDate, "yyyyMMdd", CultureInfo.InvariantCulture).ToString("dd/MM/yyyy");
 
@@ -628,7 +692,9 @@ namespace MatBaoInvoice.Invoice
                 return null;
             }
         }
+        #endregion
 
+        #region Model HĐ nháp
         public ImportInvoicesParameter Import(Form oForm, ref string message)
         {
             decimal exchangeRate = 1, quantity = 1, unitPrice = 0, vatDiscnt = 0;
@@ -703,10 +769,7 @@ namespace MatBaoInvoice.Invoice
                             ProdAttr = 1
                         });
 
-                        string parseDate = oinv.GetValue("DocDate", 0).ToString();
-
-                        //Parsing a date string in a specific format using InvariantCulture
-                        string arisingDate = DateTime.ParseExact(parseDate, "yyyyMMdd", CultureInfo.InvariantCulture).ToString("dd/MM/yyyy");
+                        string arisingDate = DateTime.Now.Date.ToString("dd/MM/yyyy");
 
                         decimal docTotal = decimal.Parse(oinv.GetValue("DocTotal", 0).Trim());
                         decimal vatAmount = decimal.Parse(oinv.GetValue("VatSum", 0).Trim());
@@ -858,7 +921,9 @@ namespace MatBaoInvoice.Invoice
                 return null;
             }
         }
+        #endregion
 
+        #region API phát hành HĐ
         public async Task<ServiceResult> CallARAPIPublish(PublishInvoiceParameters p, string url)
         {
             string json = JsonConvert.SerializeObject(p);
@@ -924,7 +989,9 @@ namespace MatBaoInvoice.Invoice
                 };
             }
         }
+        #endregion
 
+        #region API tạo HĐ nháp
         public async Task<ServiceResult> CallARAPIImport(ImportInvoicesParameter p, string url)
         {
             string json = JsonConvert.SerializeObject(p);
@@ -991,7 +1058,68 @@ namespace MatBaoInvoice.Invoice
                 };
             }
         }
+        #endregion
 
+        #region API lấy chữ kí HĐ nháp
+        public async Task<ServiceResult> IssueInvoice(IssueInvoiceParameter p, string url)
+        {
+            string json = JsonConvert.SerializeObject(p);
+
+            try
+            {
+                var client = new HttpClient();
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var request = new HttpRequestMessage(System.Net.Http.HttpMethod.Post, url);
+                request.Content = content;
+                var response = await client.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+                var res = await response.Content.ReadAsStringAsync();
+
+                JObject responseObject = JObject.Parse(res);
+                string status = responseObject["status"].ToString();
+                string message = responseObject["messages"]?.ToString();
+                JArray data = responseObject["data"] as JArray;
+
+                var serviceResult = new ServiceResult
+                {
+                    Status = status,
+                    Message = message,
+                    ResponseContent = res
+                };
+
+                if (status == "OK")
+                {
+                    serviceResult.Success = true;
+                    serviceResult.InvNo = data?[0]?["InvNo"]?.ToString();
+                }
+                else
+                {
+                    serviceResult.Success = false;
+                    serviceResult.ErrorCode = message;
+                }
+
+                return serviceResult;
+            }
+            catch (HttpRequestException ex)
+            {
+                return new ServiceResult
+                {
+                    Success = false,
+                    Message = "Request error: " + ex.Message
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ServiceResult
+                {
+                    Success = false,
+                    Message = "Unexpected error: " + ex.Message
+                };
+            }
+        }
+        #endregion
+
+        #region Model hủy HĐ
         public PublishInvoiceParameters CancelInvoice(Form oForm, ref string message)
         {
             DBDataSource oinv = oForm.DataSources.DBDataSources.Item("OINV");
@@ -1006,7 +1134,9 @@ namespace MatBaoInvoice.Invoice
             };
             return cancel;
         }
+        #endregion
 
+        #region Model tải HĐ
         public DownloadInvoice DownInv(Form oForm, ref string message)
         {
             DBDataSource oinv = oForm.DataSources.DBDataSources.Item("OINV");
@@ -1023,7 +1153,9 @@ namespace MatBaoInvoice.Invoice
 
             return download;
         }
+        #endregion
 
+        #region Model gửi mail
         public SendEmailParameter SendEmail(Form oForm, ref string message)
         {
             DBDataSource oinv = oForm.DataSources.DBDataSources.Item("OINV");
@@ -1039,7 +1171,34 @@ namespace MatBaoInvoice.Invoice
 
             return email;
         }
+        #endregion
 
+        #region Model lấy chữ kí HĐ nháp
+        public IssueInvoiceParameter IssueDraftInv(Form oForm, ref string message)
+        {
+            DBDataSource oinv = oForm.DataSources.DBDataSources.Item("OINV");
+
+            string parseDate = oinv.GetValue("DocDate", 0).ToString();
+
+            //Parsing a date string in a specific format using InvariantCulture
+            string arisingDate = DateTime.ParseExact(parseDate, "yyyyMMdd", CultureInfo.InvariantCulture).ToString("dd/MM/yyyy");
+
+            var issueInv = new IssueInvoiceParameter
+            {
+                ApiUserName = Session.Session.apiUserName,
+                ApiPassword = Session.Session.apiPassword,
+                ApiInvPattern = Session.Session.apiInvPattern,
+                ApiInvSerial = Session.Session.apiInvSerial,
+                Fkey = oinv.GetValue("U_FKEY", 0).Trim(),
+                ArisingDate = arisingDate
+
+            };
+
+            return issueInv;
+        }
+        #endregion
+
+        #region API lấy Fkey
         public async Task<string> GetFkey()
         {
             using (var client = new HttpClient())
@@ -1069,6 +1228,7 @@ namespace MatBaoInvoice.Invoice
                 return "";
             }
         }
+        #endregion
 
         public void MenuEvent(MenuEvent pVal, out bool BubbleEvent)
         {
@@ -1080,7 +1240,7 @@ namespace MatBaoInvoice.Invoice
             if (pVal.ActionSuccess == true && pVal.FormTypeEx == "133" || pVal.FormTypeEx == "60091") //AR Invoice load event
             {
                 OpenFormARInvoice(pVal);
-                //GetSignatureARInvoice(pVal);
+                SignatureBtn(pVal);
             }
 
             if (pVal.ActionSuccess == true && pVal.FormTypeEx == "179")
@@ -1089,8 +1249,14 @@ namespace MatBaoInvoice.Invoice
 
         public void ITEM_PRESSED(string formUID, ItemEvent pVal, bool BubbleEvent)
         {
-            if (pVal.ActionSuccess == true && pVal.FormTypeEx == "133" && pVal.ItemUID == "btn")
-                ARInvoice(pVal);
+            if (pVal.ActionSuccess == true)
+                if (pVal.FormTypeEx == "133")
+                {
+                    if (pVal.ItemUID == "btn")
+                        ARInvoice(pVal);
+                    else if (pVal.ItemUID == "btn1")
+                        SignatureARInvoice(pVal);
+                }
         }
 
         public void FORM_DATA_ADD(string FormUID, BusinessObjectInfo events, out bool BubbleEvent)
@@ -1102,30 +1268,30 @@ namespace MatBaoInvoice.Invoice
         {
             BubbleEvent = true;
 
-            if (events.ActionSuccess == true && events.FormTypeEx == "133" || events.FormTypeEx == "60091") //AR Invoice load event
-            {
-                GetSignatureARInvoice(events);
-            }
+            //if (events.ActionSuccess == true && events.FormTypeEx == "133" || events.FormTypeEx == "60091") //AR Invoice load event
+            //{
+            //    GetSignatureARInvoice(events);
+            //}
         }
 
         public void FORM_DATA_LOAD(string FormUID, BusinessObjectInfo events, out bool BubbleEvent)
         {
             BubbleEvent = true;
 
-            if (events.ActionSuccess == true && events.FormTypeEx == "133" || events.FormTypeEx == "60091") //AR Invoice load event
-            {
-                GetSignatureARInvoice(events);
-            }
+            //if (events.ActionSuccess == true && events.FormTypeEx == "133" || events.FormTypeEx == "60091") //AR Invoice load event
+            //{
+            //    GetSignatureARInvoice(events);
+            //}
         }
 
         public void FORM_ACTIVATE(string FormUID, ItemEvent pVal, out bool BubbleEvent)
         {
             BubbleEvent = true;
 
-            //if (pVal.ActionSuccess == true && pVal.FormTypeEx == "133" || pVal.FormTypeEx == "60091") //AR Invoice load event
-            //{
-            //    GetSignatureARInvoice(pVal);
-            //}
+            if (pVal.ActionSuccess == true && pVal.FormTypeEx == "133" || pVal.FormTypeEx == "60091") //AR Invoice load event
+            {
+                SignatureBtn(pVal);
+            }
         }
 
         public void EnableSignatureButton()
