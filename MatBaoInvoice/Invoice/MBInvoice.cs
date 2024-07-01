@@ -45,7 +45,7 @@ namespace MatBaoInvoice.Invoice
                 oButtonCombo = (ButtonCombo)oItem.Specific;
                 oButtonCombo.Caption = "Hóa Đơn";
                 oButtonCombo.ValidValues.Add("Phát hành HĐ", "Phát hành HĐ");
-                oButtonCombo.ValidValues.Add("Đẩy HĐ", "Đẩy HĐ");
+                oButtonCombo.ValidValues.Add("HĐ nháp", "HĐ nháp");
                 oButtonCombo.ValidValues.Add("Gửi Email", "Gửi Email");
                 oButtonCombo.ValidValues.Add("Hủy HĐ", "Hủy HĐ");
                 oButtonCombo.ValidValues.Add("Tải HĐ", "Tải HĐ");
@@ -116,15 +116,16 @@ namespace MatBaoInvoice.Invoice
                         var response = await client.SendAsync(request);
                         response.EnsureSuccessStatusCode();
 
-                        var res = await response.Content.ReadAsStringAsync();
-                        var resJson = JArray.Parse(res);
+                        string res = await response.Content.ReadAsStringAsync();
 
-                        var a = resJson["data"] as JArray;
-                        string invID = a[0]["InvID"].ToString();
+                        JObject responseObject = JObject.Parse(res);
+                        message = responseObject["messages"]?.ToString();
+                        JArray data = responseObject["data"] as JArray;
+                        string invID = data?[0]?["InvID"]?.ToString();
 
                         string fkey = await GetFkey();
 
-                        if (string.IsNullOrEmpty(fkey) || string.IsNullOrEmpty(invID))
+                        if (string.IsNullOrEmpty(fkey))
                         {
                             return;
                         }
@@ -143,7 +144,7 @@ namespace MatBaoInvoice.Invoice
                                 string DocEntry = oinv.GetValue("DocEntry", 0).Trim();
                                 invoice.GetByKey(int.Parse(DocEntry));
                                 invoice.UserFields.Fields.Item("U_FKEY").Value = fkey;
-                                invoice.UserFields.Fields.Item("U_InvID").Value = invID;
+                                //invoice.UserFields.Fields.Item("U_InvID").Value = invID;
                                 invoice.Update();
 
                                 Globals.SapApplication.StatusBar.SetText("Publish AR Sucessful", BoMessageTime.bmt_Short, BoStatusBarMessageType.smt_Success);
@@ -165,7 +166,7 @@ namespace MatBaoInvoice.Invoice
                     }
                 }
             }
-            else if (oBtnCombo.Selected.Value == "Đẩy HĐ")
+            else if (oBtnCombo.Selected.Value == "HĐ nháp")
             {
                 try
                 {
@@ -187,11 +188,11 @@ namespace MatBaoInvoice.Invoice
                         var response = await client.SendAsync(request);
                         response.EnsureSuccessStatusCode();
 
-                        var res = await response.Content.ReadAsStringAsync();
-                        var resJson = JArray.Parse(res);
-
-                        var a = resJson[0] as JArray;
-                        string invID = a?[0]?["InvID"]?.ToString();
+                        string res = await response.Content.ReadAsStringAsync();
+                        JArray responseArray = JArray.Parse(res);
+                        JObject a = responseArray[0] as JObject;
+                        JArray data = a["data"] as JArray;
+                        string invID = data?[0]?["InvID"]?.ToString();
 
                         string fkey = await GetFkey();
 
@@ -203,7 +204,7 @@ namespace MatBaoInvoice.Invoice
                         foreach (var invoicesMD in invoiceMD.Invoices)
                         {
                             invoicesMD.Fkey = fkey;
-                            invoicesMD.SO = "KC001" + "26";
+                            invoicesMD.SO = "KC001" + "28";
 
                             if (invoicesMD != null)
                             {
@@ -873,10 +874,10 @@ namespace MatBaoInvoice.Invoice
                     response.EnsureSuccessStatusCode();
                     var res = await response.Content.ReadAsStringAsync();
 
-                    var responseObject = JObject.Parse(res);
-                    var status = responseObject["status"].ToString();
-                    var message = responseObject["messages"]?.ToString();
-                    var data = responseObject["data"] as JArray;
+                    JObject responseObject = JObject.Parse(res);
+                    string status = responseObject["status"].ToString();
+                    string message = responseObject["messages"]?.ToString();
+                    JArray data = responseObject["data"] as JArray;
 
                     var serviceResult = new ServiceResult
                     {
@@ -939,10 +940,11 @@ namespace MatBaoInvoice.Invoice
                     response.EnsureSuccessStatusCode();
                     var res = await response.Content.ReadAsStringAsync();
 
-                    var responseObject = JObject.Parse(res);
-                    var status = responseObject["status"].ToString();
-                    var message = responseObject["messages"]?.ToString();
-                    var data = responseObject["data"] as JArray;
+                    JArray responseArray = JArray.Parse(res);
+                    JObject objectConvert = responseArray[0] as JObject;
+                    string status = objectConvert["status"].ToString();
+                    string message = objectConvert["messages"]?.ToString();
+                    JArray data = objectConvert["data"] as JArray;
 
                     var serviceResult = new ServiceResult
                     {
