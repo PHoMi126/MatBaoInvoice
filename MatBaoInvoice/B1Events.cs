@@ -36,6 +36,7 @@ namespace MatBaoInvoice.Event
             b.MenuEvent(pVal, out BubbleEvent);
         }
 
+        #region SBO_Application_ItemEvent
         private void SBO_Application_ItemEvent(string formUID, ref ItemEvent pVal, out bool BubbleEvent)
         {
             BubbleEvent = true;
@@ -109,7 +110,9 @@ namespace MatBaoInvoice.Event
                     break;
             }
         }
+        #endregion
 
+        #region SBO_Application_FormDataEvent
         private void SBO_Application_FormDataEvent(ref BusinessObjectInfo businessObjectInfo, out bool BubbleEvent)
         {
             BubbleEvent = true;
@@ -127,6 +130,7 @@ namespace MatBaoInvoice.Event
                     break;
             }
         }
+        #endregion
 
         private void SBO_Application_RightClickEvent(ref ContextMenuInfo eventInfo, out bool BubbleEvent)
         {
